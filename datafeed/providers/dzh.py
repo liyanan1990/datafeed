@@ -245,10 +245,12 @@ class DzhFiveMinute(DzhDay):
 class DzhFetcher(object):
     _IPS = ('222.73.103.181', '222.73.103.183')
     _PATH = None
-    
-    def __init__(self):
+    _FILE_PATH = None
+
+    def __init__(self, filepath = None):
         self.ips = list(self._IPS)
         self._fetched = False
+        self._FILE_PATH = filepath
 
     def fetch_next_server(self):
         self.ips.pop
@@ -257,13 +259,26 @@ class DzhFetcher(object):
         return self.fetch()
         
     def fetch(self):
+        if self._FILE_PATH is None:
+            return self._fetch_url()
+        else:
+            return self._fetch_file()
+
+    def _fetch_url(self):
         try:
-            r = urllib2.urlopen(self.data_url())
+            r = urllib2
             data = r.read()
             self.f = StringIO(data)
             self._fetched = True
-        except URLError:
+        except urllib2.URLError:
             return self.fetch_next_server()
+
+    def _fetch_file(self):
+        try:
+            self.f = open(self._FILE_PATH, 'rb')
+            self._fetched = True
+        except OSError as e:
+            raise e
     
     def data_url(self):
         assert self._PATH, "No file path."
