@@ -130,10 +130,19 @@ def adjust(y, divs, capitalize=False):
     return frame
 
 
+def datetime_2_int(dt):
+    t = dt.timetuple()
+
+    return t.tm_year*10000 + t.tm_mon*100 + t.tm_mday
+
 def sort_dividend(divs):
     if len(divs) > 0:
         df = DataFrame(divs)
         df = df.sort_values(by='time')
+
+        # df['datetime'] = df.time.apply(lambda x: pd.datetime.utcfromtimestamp(x))
+        # df.time = df['datetime'].apply(datetime_2_int)
+        # df = df.set_index('datetime')
         df.time = df.time.apply(lambda x: pd.datetime.utcfromtimestamp(x))
         df = df.set_index('time')
 
@@ -141,20 +150,39 @@ def sort_dividend(divs):
 
 
 # 计算得到向后复权因子
-def factor(y, divs):
-    # 排序复权因子,
+# 发现这种算法没有错，但很多股票还是有一些与万得对应不上
+# 除权应子的算法应当是 交易所会发布前收盘价与收盘价进行比较就是除权因子
+# 但上交所网站上前收盘价并不好查，因为按分类，有些还是不好做
+# 可以对照一下通达信与万得的行情，哪种价格对应得上
+def factor(daily, divs):
+    # 排序复权因子
     df = sort_dividend(divs)
 
-    # 平移一下，取昨收盘价
-    pre_close = y['close'].shift(1)
-    # 担心会不会选不出来？
-    df['pre_close'] = pre_close.loc[df.index]
+    # 过滤一下，用来计算除权价
+    daily_part = daily[['time', 'close']]
+
+    # 无语，停牌会选不出来，比如说SZ000001，会有日期对应不上,所以只能先合并然后再处理
+    daily_div = pd.merge(daily_part, df, how='outer', left_index=True, right_index=True, sort=False)
+    # 由于可能出现在停牌期公布除权除息，所以需要补上除权那天的收盘价
+    daily_div['close'] = daily_div['close'].fillna(method='pad', limit=1)
+    daily_div = daily_div.shift(1)
+    daily_div[['split', 'purchase', 'purchase_price', 'dividend']] = daily_div[['split', 'purchase', 'purchase_price', 'dividend']].fillna(method='bfill', limit=1)
+
+    # 预处理后只取需要的部分
+    df = daily_div.loc[df.index]
+    # 注意：换了两个列名
+    df.columns = ['pre_day', 'pre_close', 'split', 'purchase', 'purchase_price', 'dividend']
+    #df.to_csv(r'd:\15.csv')
+
+    df['pre_day'] = df['pre_day']//10000
 
     # 除权价
-    df['dr_close'] = (df['pre_close'] - df['dividend'] + df['purchase'] * df['purchase_price']) / (
+    df['dr_pre_close'] = (df['pre_close'] - df['dividend'] + df['purchase'] * df['purchase_price']) / (
     1 + df['split'] + df['purchase'])
+    # 要做一次四舍五入,不然除权因子不对
+    df['dr_pre_close'] = df['dr_pre_close'].apply(lambda x: round(x, 2))
     # 除权因子
-    df['dr_factor'] = df['pre_close'] / df['dr_close']
+    df['dr_factor'] = df['pre_close'] / df['dr_pre_close']
 
     # 在最前插件一条特殊的记录，用于表示在第一次除权之前系数为1
     # 由于不知道上市是哪一天，只好用最小日期
@@ -197,3 +225,26 @@ def adjust_with_factor(y, f, start_index_datetime):
     df = df.dropna()
 
     return df
+
+if __name__ == '__main__':
+    from datafeed.providers.dzh import *
+    from datafeed.dividend import *
+    from datafeed.providers.tdx import *
+
+    io = DzhDividend(r'D:\dzh2\Download\PWR\full.PWR')
+    r = io.read()
+
+    tdx_day = tdx_read(r'D:\new_hbzq\vipdoc\sz\lday\sz000001.day')
+
+    for data in r:
+        symbol = data[0]
+        if symbol != 'SZ000001':
+            continue
+
+        print symbol
+        divs = data[1]
+        df = factor(tdx_day, divs)
+
+        #a = adjust_with_factor(y, df, y.index[0])
+
+        break

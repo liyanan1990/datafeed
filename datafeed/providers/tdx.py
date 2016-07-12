@@ -52,15 +52,14 @@ def min_datetime_long(dt):
 
 
 def day_datetime_long(dt):
+    # 传入的数据是到日，需要转成分钟
     return dt*10000
 
 
 def long_2_datetime(dt):
     (yyyyMMdd, hhmm) = divmod(dt, 10000)
-
     (yyyy, MMdd) = divmod(yyyyMMdd, 10000)
     (MM, dd) = divmod(MMdd, 100)
-
     (hh, mm) = divmod(hhmm, 100)
 
     return pd.datetime(yyyy, MM, dd, hh, mm)
@@ -68,7 +67,7 @@ def long_2_datetime(dt):
 # 读TDX
 # http://www.tdx.com.cn/list_66_68.html
 # 通达信本地目录有day/lc1/lc5三种后缀名，两种格式
-# 从通达信官网下载的5分钟后缀只有5这种格式
+# 从通达信官网下载的5分钟后缀只有5这种格式，为了处理方便，时间精度都只到分钟
 def tdx_read(path, file_ext='day'):
     ohlc_type = {'day': 'i4', '5': 'i4', 'lc1': 'f4', 'lc5': 'f4'}[file_ext]
     date_parser = {'day': day_datetime_long,
@@ -81,7 +80,7 @@ def tdx_read(path, file_ext='day'):
     dtype = np.dtype({'names': columns, 'formats': formats})
     data = np.fromfile(path, dtype=dtype)
     df = pd.DataFrame(data)
-    # 为了处理的方便，存一套long类型的时间
+    # 为了处理的方便，存一套long类型的时间,
     df.time = df.time.apply(date_parser)
     df['datetime'] = df.time.apply(long_2_datetime)
     df = df.set_index('datetime')
@@ -94,7 +93,8 @@ def tdx_read(path, file_ext='day'):
         r = tmp.amount / tmp.volume / tmp.close
         # 为了解决价格扩大了多少倍的问题
         type_unit = np.power(10, np.round(np.log10(r))).median()
-        df.ix[:, :4] = df.ix[:, :4] * type_unit
+        # 这个地方要考虑到实际情况，不要漏价格，也不要把时间做了除法
+        df.ix[:, 1:5] = df.ix[:, 1:5] * type_unit
 
     return df
 
@@ -117,4 +117,4 @@ if __name__ == '__main__':
     ohlcv = a.iloc[:, 1:7].as_matrix()
 
     # 这里是保存为mat文件的示例，MATLAB保存时需要加参数-v6才能被Python读出来，同时还不支持cell
-    sio.savemat(r'd:\5.mat', {'time': tt, 'ohlcv': ohlcv})
+    sio.savemat(r'd:\5.mat', {'time': tt, 'ohlcv': ohlcv}, do_compression=True)
