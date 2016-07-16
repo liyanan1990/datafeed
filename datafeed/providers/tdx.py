@@ -48,15 +48,16 @@ def min_datetime_long(dt):
     (m, d) = divmod(res, 100)
     h, t = divmod(tnum, 60)
 
-    return y*100000000+res*10000+h*100+t*1
+    return float(y*100000000L+res*10000+h*100+t*1)
 
 
 def day_datetime_long(dt):
     # 传入的数据是到日，需要转成分钟
-    return dt*10000
+    return float(dt*10000L)
 
 
 def long_2_datetime(dt):
+    dt = long(dt)
     (yyyyMMdd, hhmm) = divmod(dt, 10000)
     (yyyy, MMdd) = divmod(yyyyMMdd, 10000)
     (MM, dd) = divmod(MMdd, 100)
@@ -85,6 +86,7 @@ def tdx_read(path, file_ext='day'):
     df['datetime'] = df.time.apply(long_2_datetime)
     df = df.set_index('datetime')
 
+
     df = df.drop('na', 1)
 
     # 有两种格式的数据需要调整
@@ -95,6 +97,9 @@ def tdx_read(path, file_ext='day'):
         type_unit = np.power(10, np.round(np.log10(r))).median()
         # 这个地方要考虑到实际情况，不要漏价格，也不要把时间做了除法
         df.ix[:, 1:5] = df.ix[:, 1:5] * type_unit
+
+    df['amount'] = df['amount'].apply(lambda x: float(x))
+    df['volume'] = df['volume'].apply(lambda x: float(x))
 
     return df
 

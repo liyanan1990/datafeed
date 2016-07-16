@@ -130,19 +130,16 @@ def adjust(y, divs, capitalize=False):
     return frame
 
 
-def datetime_2_int(dt):
+def datetime_2_long(dt):
     t = dt.timetuple()
+    return float((t.tm_year*10000 + t.tm_mon*100 + t.tm_mday)*10000L)
 
-    return t.tm_year*10000 + t.tm_mon*100 + t.tm_mday
 
 def sort_dividend(divs):
     if len(divs) > 0:
         df = DataFrame(divs)
         df = df.sort_values(by='time')
 
-        # df['datetime'] = df.time.apply(lambda x: pd.datetime.utcfromtimestamp(x))
-        # df.time = df['datetime'].apply(datetime_2_int)
-        # df = df.set_index('datetime')
         df.time = df.time.apply(lambda x: pd.datetime.utcfromtimestamp(x))
         df = df.set_index('time')
 
@@ -159,7 +156,7 @@ def factor(daily, divs):
     df = sort_dividend(divs)
 
     # 过滤一下，用来计算除权价
-    daily_part = daily[['time', 'close']]
+    daily_part = daily[['time','time', 'close']]
 
     # 无语，停牌会选不出来，比如说SZ000001，会有日期对应不上,所以只能先合并然后再处理
     daily_div = pd.merge(daily_part, df, how='outer', left_index=True, right_index=True, sort=False)
@@ -171,15 +168,12 @@ def factor(daily, divs):
     # 预处理后只取需要的部分
     df = daily_div.loc[df.index]
     # 注意：换了两个列名
-    df.columns = ['pre_day', 'pre_close', 'split', 'purchase', 'purchase_price', 'dividend']
-    #df.to_csv(r'd:\15.csv')
+    df.columns = ['time', 'pre_day', 'pre_close', 'split', 'purchase', 'purchase_price', 'dividend']
 
-    df['pre_day'] = df['pre_day']//10000
-
-    # 除权价
+     # 除权价
     df['dr_pre_close'] = (df['pre_close'] - df['dividend'] + df['purchase'] * df['purchase_price']) / (
     1 + df['split'] + df['purchase'])
-    # 要做一次四舍五入,不然除权因子不对
+    # 要做一次四舍五入,不然除权因子不对,2是不是不够，需要用到3呢？
     df['dr_pre_close'] = df['dr_pre_close'].apply(lambda x: round(x, 2))
     # 除权因子
     df['dr_factor'] = df['pre_close'] / df['dr_pre_close']
@@ -190,10 +184,17 @@ def factor(daily, divs):
     df = df.append(first_)
     df = df.sort_index()
 
+    df['time'] = df.index
+    df['time'] = df['time'].apply(datetime_2_long)
+
     # 向后复权因子，注意对除权因子的累乘
     df['backward_factor'] = df['dr_factor'].cumprod()
     # 向前复权因子
     df['forward_factor'] = df['backward_factor'] / float(df['backward_factor'][-1:])
+
+    df = df[['time', 'pre_day', 'pre_close',
+             'split', 'purchase', 'purchase_price', 'dividend',
+             'dr_pre_close', 'dr_factor', 'backward_factor', 'forward_factor']]
 
     return df
 
@@ -234,11 +235,11 @@ if __name__ == '__main__':
     io = DzhDividend(r'D:\dzh2\Download\PWR\full.PWR')
     r = io.read()
 
-    tdx_day = tdx_read(r'D:\new_hbzq\vipdoc\sz\lday\sz000001.day')
+    tdx_day = tdx_read(r'D:\new_hbzq\vipdoc\sh\lday\sh600000.day')
 
     for data in r:
         symbol = data[0]
-        if symbol != 'SZ000001':
+        if symbol != 'SH600000':
             continue
 
         print symbol
