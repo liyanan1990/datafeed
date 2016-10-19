@@ -91,7 +91,9 @@ def tdx_read(path, file_ext='day'):
 
     # 有两种格式的数据需要调整
     if file_ext == 'day' or file_ext == '5':
-        tmp = df[:10]
+        # tmp = df[:10]
+
+        tmp = df.tail(10)
         r = tmp.amount / tmp.volume / tmp.close
         # 为了解决价格扩大了多少倍的问题
         type_unit = np.power(10, np.round(np.log10(r))).median()

@@ -156,19 +156,24 @@ def factor(daily, divs):
     df = sort_dividend(divs)
 
     # 过滤一下，用来计算除权价
-    daily_part = daily[['time','time', 'close']]
+    daily_part = daily[['time', 'time', 'close']]
+    daily_part.columns = ['time', 'pre_day', 'pre_close']
+    first_day = daily_part.index[0]
+    last_day = daily_part.index[-1]
 
     # 无语，停牌会选不出来，比如说SZ000001，会有日期对应不上,所以只能先合并然后再处理
     daily_div = pd.merge(daily_part, df, how='outer', left_index=True, right_index=True, sort=False)
     # 由于可能出现在停牌期公布除权除息，所以需要补上除权那天的收盘价
-    daily_div['close'] = daily_div['close'].fillna(method='pad', limit=1)
-    daily_div = daily_div.shift(1)
+    daily_div['pre_close'] = daily_div['pre_close'].fillna(method='pad', limit=1)
+    daily_div = daily_div.fillna(method='pad', limit=1)
+    daily_div[['time', 'pre_day', 'pre_close']] = daily_div[['time', 'pre_day', 'pre_close']].shift(1)
     daily_div[['split', 'purchase', 'purchase_price', 'dividend']] = daily_div[['split', 'purchase', 'purchase_price', 'dividend']].fillna(method='bfill', limit=1)
 
     # 预处理后只取需要的部分
     df = daily_div.loc[df.index]
-    # 注意：换了两个列名
-    df.columns = ['time', 'pre_day', 'pre_close', 'split', 'purchase', 'purchase_price', 'dividend']
+    # 发现部分股票会提前公布除权除息信息，导致后面比例出错
+
+    df = df.fillna(0)
 
      # 除权价
     df['dr_pre_close'] = (df['pre_close'] - df['dividend'] + df['purchase'] * df['purchase_price']) / (
@@ -177,6 +182,11 @@ def factor(daily, divs):
     df['dr_pre_close'] = df['dr_pre_close'].apply(lambda x: round(x, 2))
     # 除权因子
     df['dr_factor'] = df['pre_close'] / df['dr_pre_close']
+
+    # 将超出日线还没有实现或没有行情的除权因子改成1，注意可能因为通达信没有完全下载数据而导致出错
+    df.loc[df.index > last_day, 'dr_factor'] = 1
+    # 这个地方会有风险，能拿到更全的数据最好
+    df.loc[df.index < first_day, 'dr_factor'] = 1
 
     # 在最前插件一条特殊的记录，用于表示在第一次除权之前系数为1
     # 由于不知道上市是哪一天，只好用最小日期
@@ -235,11 +245,13 @@ if __name__ == '__main__':
     io = DzhDividend(r'D:\dzh2\Download\PWR\full.PWR')
     r = io.read()
 
-    tdx_day = tdx_read(r'D:\new_hbzq\vipdoc\sh\lday\sh600000.day')
+    # 用wind_code(:,isnan(FDividend(end,:))) 可以查哪些股票有问题
+
+    tdx_day = tdx_read(r'D:\new_hbzq\vipdoc\sz\lday\sz000001.day')
 
     for data in r:
         symbol = data[0]
-        if symbol != 'SH600000':
+        if symbol != 'SZ000001':
             continue
 
         print symbol
