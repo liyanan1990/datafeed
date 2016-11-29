@@ -9,19 +9,14 @@ from datafeed.tests.test_tdx import *
 if __name__ == '__main__':
     # 日线数据的导出
     daily_input = "D:\\new_hbzq\\vipdoc\\sh\\lday"
-    daily_output = "D:\\DATA_STK\\day\\sh"
+    daily_output = "D:\\DATA_STK_HDF5\\day\\sh"
     endswith = '.day'
-    export_data(daily_input, daily_output, endswith)
+    exclude_input = r'D:\DATA_STK_HDF5\day_tmp\sh'+'\\'
+    export_data_exclude(daily_input, daily_output, endswith, exclude_input)
+
 
     daily_input = "D:\\new_hbzq\\vipdoc\\sz\\lday"
-    daily_output = "D:\\DATA_STK\\day\\sz"
+    daily_output = "D:\\DATA_STK_HDF5\\day\\sz"
     endswith = '.day'
-    export_data(daily_input, daily_output, endswith)
-
-
-
-
-
-
-
-
+    exclude_input = r'D:\DATA_STK_HDF5\day_tmp\sz'+'\\'
+    export_data_exclude(daily_input, daily_output, endswith, exclude_input)

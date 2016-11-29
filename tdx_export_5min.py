@@ -12,6 +12,7 @@ if __name__ == '__main__':
     daily_output = "D:\\DATA_STK\\5_tdx\\sh"
     endswith = '.lc5'
     export_data(daily_input, daily_output, endswith)
+
     daily_input = "D:\\new_hbzq\\vipdoc\\sz\\fzline"
     daily_output = "D:\\DATA_STK\\5_tdx\\sz"
     endswith = '.lc5'
